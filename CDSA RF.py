@@ -64,7 +64,7 @@ analysis_data['AI_Predicted'] = le.inverse_transform(pipeline.predict(analysis_d
 data['AI_Predicted'] = le.inverse_transform(pipeline.predict(data['Text']))
 
 # Save to a new Excel file
-output_file_path = 'bambang_cdsa.xlsx'
+output_file_path = 'sentiment_cdsa_rf.xlsx'
 data.to_excel(output_file_path, index=False)
 
 print(f"Data has been saved to {output_file_path}")
