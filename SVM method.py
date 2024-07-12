@@ -1,0 +1,60 @@
+import pandas as pd
+from sklearn.svm import LinearSVC
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import LabelEncoder
+from sklearn.pipeline import Pipeline
+
+# Load the Excel file
+file_path = 'dataclean01lab.xlsx'
+data = pd.read_excel(file_path, skiprows=0, usecols=[0, 1], nrows=2441)
+
+# Rename columns if necessary to match the expected names
+data.columns = ['Text', 'Label']
+
+# Ensure that Label column contains only strings and handle NaNs
+data['Label'] = data['Label'].astype(str).fillna('')
+
+# Split the data into training and analysis parts
+training_data = data[:1716]  # First 1716 rows for training
+analysis_data = data[1716:2440]  # Next 724 rows for analysis
+
+# Initialize TF-IDF Vectorizer and SVM Classifier
+vectorizer = TfidfVectorizer(max_features=1000)
+svm = LinearSVC()
+
+# Create a pipeline
+pipeline = Pipeline([('vectorizer', vectorizer), ('svm', svm)])
+
+# Encode labels
+le = LabelEncoder()
+training_labels = le.fit_transform(training_data['Label'])
+
+# Fit the pipeline on training data
+pipeline.fit(training_data['Text'], training_labels)
+
+# Predict on training data
+training_data['AI_Predicted'] = le.inverse_transform(pipeline.predict(training_data['Text']))
+
+# Calculate the accuracy of the AI predictions in the training data
+accuracy = accuracy_score(training_data['Label'], training_data['AI_Predicted'])
+print(f"Accuracy of AI predictions on training data: {accuracy:.5f}")
+
+# Count the Positif and Negatif sentiments in the training data
+positif_count = (training_data['AI_Predicted'] == 'Positif').sum()
+negatif_count = (training_data['AI_Predicted'] == 'Negatif').sum()
+
+print(f"Number of Positif sentiments in training data: {positif_count}")
+print(f"Number of Negatif sentiments in training data: {negatif_count}")
+
+# Predict on analysis data
+analysis_data['AI_Predicted'] = le.inverse_transform(pipeline.predict(analysis_data['Text']))
+
+# Predict sentiment for both training and analysis data
+data['AI_Predicted'] = le.inverse_transform(pipeline.predict(data['Text']))
+
+# Save to a new Excel file
+output_file_path = 'sentiment_cdsa_svm.xlsx'
+data.to_excel(output_file_path, index=False)
+
+print(f"Data has been saved to {output_file_path}")
