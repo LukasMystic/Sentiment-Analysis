@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.svm import LinearSVC
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import accuracy_score, precision_score
+from sklearn.metrics import accuracy_score, precision_score, confusion_matrix
 from sklearn.preprocessing import LabelEncoder
 from sklearn.pipeline import Pipeline
 
@@ -49,6 +49,12 @@ negatif_precision = precision[le.transform(['Negatif'])[0]]
 
 print(f"Precision for Positif class: {positif_precision:.5f}")
 print(f"Precision for Negatif class: {negatif_precision:.5f}")
+
+# Generate confusion matrix
+conf_matrix = confusion_matrix(training_data['Label'], training_data['AI_Predicted'], labels=le.classes_)
+
+print("Confusion Matrix:")
+print(conf_matrix)
 
 # Count the Positif and Negatif sentiments in the training data
 positif_count = (training_data['AI_Predicted'] == 'Positif').sum()
