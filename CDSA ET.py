@@ -16,8 +16,8 @@ data.columns = ['Text', 'Label']
 data['Label'] = data['Label'].astype(str).fillna('')
 
 # Split the data into training and analysis parts
-training_data = data[:1716]  # First 1716 rows for training
-analysis_data = data[1716:2440]  # Next 724 rows for analysis
+training_data = data[:1716].copy()  # First 1716 rows for training
+analysis_data = data[1716:2440].copy()  # Next 724 rows for analysis
 
 # Initialize TF-IDF Vectorizer and Extra Trees Classifier
 vectorizer = TfidfVectorizer(max_features=1000)
@@ -34,14 +34,14 @@ training_labels = le.fit_transform(training_data['Label'])
 pipeline.fit(training_data['Text'], training_labels)
 
 # Predict on training data
-training_data['AI_Predicted'] = le.inverse_transform(pipeline.predict(training_data['Text']))
+training_data.loc[:, 'AI_Predicted'] = le.inverse_transform(pipeline.predict(training_data['Text']))
 
 # Calculate the accuracy of the AI predictions in the training data
 accuracy = accuracy_score(training_data['Label'], training_data['AI_Predicted'])
 print(f"Accuracy of AI predictions on training data: {accuracy:.5f}")
 
 # Calculate precision for each class
-precision = precision_score(training_data['Label'], training_data['AI_Predicted'], average=None, labels=le.classes_)
+precision = precision_score(training_data['Label'], training_data['AI_Predicted'], average=None, labels=le.classes_, zero_division=0)
 
 # Extract precision for Positif and Negatif classes
 positif_precision = precision[le.transform(['Positif'])[0]]
@@ -58,10 +58,10 @@ print(f"Number of Positif sentiments in training data: {positif_count}")
 print(f"Number of Negatif sentiments in training data: {negatif_count}")
 
 # Predict on analysis data
-analysis_data['AI_Predicted'] = le.inverse_transform(pipeline.predict(analysis_data['Text']))
+analysis_data.loc[:, 'AI_Predicted'] = le.inverse_transform(pipeline.predict(analysis_data['Text']))
 
 # Predict sentiment for both training and analysis data
-data['AI_Predicted'] = le.inverse_transform(pipeline.predict(data['Text']))
+data.loc[:, 'AI_Predicted'] = le.inverse_transform(pipeline.predict(data['Text']))
 
 # Save to a new Excel file
 output_file_path = 'sentiment_cdsa_et.xlsx'
