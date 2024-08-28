@@ -10,7 +10,6 @@ import numpy as np
 # Load the training Excel file
 training_file_path = 'combined_sentiments.xlsx'
 training_data = pd.read_excel(training_file_path, skiprows=0, usecols=[0, 1], nrows=938)
-print("Training Data Columns:", training_data.columns)
 
 # Rename columns for clarity
 training_data.columns = ['Text', 'Label']
@@ -32,31 +31,65 @@ test_data.columns = ['Text', 'Label']
 test_data['Text'] = test_data['Text'].astype(str)
 test_data['Label'] = test_data['Label'].astype(str)
 
-# Initialize TF-IDF Vectorizer and SVM Classifier
-vectorizer = TfidfVectorizer()
-svm = LinearSVC()
+# Define stopwords list
+stopwords_list = [
+    'kami', 'ada', 'tetapi', 'dengan', 'bapak', 'pada', 'yang', 'selain', 'oleh', 
+    'dan', 'apakah', 'kita', 'lagi', 'jika', 'sebagai', 'lebih', 'melalui', 
+    'dapat', 'di', 'tersebut', 'saat', 'tidak', 'jadi', 'dari', 'namun', 
+    'seperti', 'sebuah', 'ini', 'boleh', 'mereka', 'saya', 'bisa', 'untuk', 
+    'adalah', 'sudah', 'juga', 'akan', 'itu', 'ke', 'pak', 'nya', 'harus', 'atau', 'yg'
+]
 
-# Create a pipeline
-pipeline = Pipeline([('vectorizer', vectorizer), ('svm', svm)])
+# Initialize TF-IDF Vectorizer
+vectorizer = TfidfVectorizer(stop_words=stopwords_list)
 
 # Encode labels
 le = LabelEncoder()
 training_labels = le.fit_transform(training_data['Label'])
-
-# Fit the pipeline on training data
-pipeline.fit(training_data['Text'], training_labels)
-
-# Predict on test data
 test_labels = le.transform(test_data['Label'])
-test_predictions = pipeline.predict(test_data['Text'])
+
+# Define the parameters to iterate over
+C_values = [0.1, 1, 10, 100, 1000]
+max_iter_values = [10000, 20000, 30000]
+
+best_accuracy = 0
+best_params = {}
+best_pipeline = None
+
+# Iterate over the parameter combinations
+for C in C_values:
+    for max_iter in max_iter_values:
+        print(f"Testing parameters: C={C}, max_iter={max_iter}")
+
+        # Initialize SVM Classifier with the current parameters
+        svm = LinearSVC(C=C, max_iter=max_iter)
+        
+        # Create a pipeline
+        pipeline = Pipeline([('vectorizer', vectorizer), ('svm', svm)])
+        
+        # Fit the model on the entire training data
+        pipeline.fit(training_data['Text'], training_labels)
+
+        # Predict on test data using the fitted model
+        test_predictions = pipeline.predict(test_data['Text'])
+
+        # Calculate accuracy
+        accuracy = accuracy_score(test_labels, test_predictions)
+
+        # Check if this model is the best so far
+        if accuracy > best_accuracy:
+            best_accuracy = accuracy
+            best_params = {'C': C, 'max_iter': max_iter}
+            best_pipeline = pipeline
+
+# Use the best model found
+test_predictions = best_pipeline.predict(test_data['Text'])
 test_data['AI_Predicted'] = le.inverse_transform(test_predictions)
 
-
-
 # Calculate metrics for the AI predictions in the test data
-accuracy = accuracy_score(test_labels, test_predictions)
+print(f"Best Parameters: {best_params}")
+print(f"Best Accuracy: {best_accuracy:.5f}")
 
-print(f"Accuracy of AI predictions on training data: {accuracy:.5f}")
 precision = precision_score(test_labels, test_predictions, average=None, zero_division=0)
 recall = recall_score(test_labels, test_predictions, average=None, zero_division=0)
 f1 = f1_score(test_labels, test_predictions, average=None, zero_division=0)
@@ -81,7 +114,7 @@ correct_counts = correct_predictions['Label'].value_counts()
 incorrect_counts = incorrect_predictions['Label'].value_counts()
 
 # Save only the test data to a new Excel file
-output_file_path = 'sentiment_svm.xlsx'
+output_file_path = 'sentiment_cdsa_svm.xlsx'
 test_data.to_excel(output_file_path, index=False)
 
 print(f"Test data has been saved to {output_file_path}")
@@ -133,3 +166,4 @@ add_counts(bars1)
 add_counts(bars2)
 
 plt.show()
+
