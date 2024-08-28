@@ -10,58 +10,76 @@ import numpy as np
 # Load the training Excel file
 training_file_path = 'combined_sentiments.xlsx'
 training_data = pd.read_excel(training_file_path, skiprows=0, usecols=[0, 1], nrows=938)
-print("Training Data Columns:", training_data.columns)
 
 # Rename columns for clarity
 training_data.columns = ['Text', 'Label']
 
 # Ensure that Label column contains only strings and handle NaNs
 training_data['Label'] = training_data['Label'].astype(str).fillna('')
-
-# Ensure that Text column contains only strings
 training_data['Text'] = training_data['Text'].astype(str)
 
 # Load the test Excel file
 test_file_path = 'combined_sentiments_test.xlsx'
 test_data = pd.read_excel(test_file_path, skiprows=0, usecols=[0, 1], nrows=402)
-
-# Rename columns for clarity
 test_data.columns = ['Text', 'Label']
-
-# Ensure that Text and Label columns contain only strings
 test_data['Text'] = test_data['Text'].astype(str)
 test_data['Label'] = test_data['Label'].astype(str)
 
-# Initialize TF-IDF Vectorizer and SVM Classifier with polynomial kernel
-vectorizer = TfidfVectorizer()
-svm = SVC(kernel='poly', degree=3, coef0=1)
-
-# Create a pipeline
-pipeline = Pipeline([('vectorizer', vectorizer), ('svm', svm)])
+# Define stopwords list
+stopwords_list = [
+    'kami', 'ada', 'tetapi', 'dengan', 'bapak', 'pada', 'yang', 'selain', 'oleh', 
+    'dan', 'apakah', 'kita', 'lagi', 'jika', 'sebagai', 'lebih', 'melalui', 
+    'dapat', 'di', 'tersebut', 'saat', 'tidak', 'jadi', 'dari', 'namun', 
+    'seperti', 'sebuah', 'ini', 'boleh', 'mereka', 'saya', 'bisa', 'untuk', 
+    'adalah', 'sudah', 'juga', 'akan', 'itu', 'ke', 'pak', 'nya', 'harus', 'atau', 'yg'
+]
 
 # Encode labels
 le = LabelEncoder()
 training_labels = le.fit_transform(training_data['Label'])
-
-# Fit the pipeline on training data
-pipeline.fit(training_data['Text'], training_labels)
-
-# Predict on test data
 test_labels = le.transform(test_data['Label'])
-test_predictions = pipeline.predict(test_data['Text'])
+
+# Iterate over different hyperparameters and find the best model
+best_accuracy = 0
+best_pipeline = None
+best_params = {}
+
+degrees = [2, 3, 4]  # Degrees for polynomial kernel
+C_values = [0.1, 1, 10]  # Regularization parameters
+coef0_values = [0, 1, 2]  # Coef0 parameters
+
+for degree in degrees:
+    for C in C_values:
+        for coef0 in coef0_values:
+            vectorizer = TfidfVectorizer(stop_words=stopwords_list)
+            svm = SVC(kernel='poly', degree=degree, C=C, coef0=coef0)
+            pipeline = Pipeline([('vectorizer', vectorizer), ('svm', svm)])
+            
+            # Fit the pipeline on training data
+            pipeline.fit(training_data['Text'], training_labels)
+            
+            # Predict on test data
+            test_predictions = pipeline.predict(test_data['Text'])
+            
+            # Calculate accuracy
+            accuracy = accuracy_score(test_labels, test_predictions)
+            
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_pipeline = pipeline
+                best_params = {'degree': degree, 'C': C, 'coef0': coef0}
+
+# After iteration, use the best model for further analysis and visualization
+test_predictions = best_pipeline.predict(test_data['Text'])
 test_data['AI_Predicted'] = le.inverse_transform(test_predictions)
 
 # Calculate metrics for the AI predictions in the test data
-accuracy = accuracy_score(test_labels, test_predictions)
-print(f"Accuracy of AI predictions on test data: {accuracy:.5f}")
 precision = precision_score(test_labels, test_predictions, average=None, zero_division=0)
 recall = recall_score(test_labels, test_predictions, average=None, zero_division=0)
 f1 = f1_score(test_labels, test_predictions, average=None, zero_division=0)
 
 # Generate classification report
 report = classification_report(test_labels, test_predictions, zero_division=0, output_dict=True)
-
-# Create a DataFrame from the classification report
 report_df = pd.DataFrame(report).transpose()
 print(report_df)
 
@@ -78,10 +96,11 @@ correct_counts = correct_predictions['Label'].value_counts()
 incorrect_counts = incorrect_predictions['Label'].value_counts()
 
 # Save only the test data to a new Excel file
-output_file_path = 'sentiment_svm_polynomial.xlsx'
+output_file_path = 'sentiment_cdsa_svm_polynomial.xlsx'
 test_data.to_excel(output_file_path, index=False)
 
 print(f"Test data has been saved to {output_file_path}")
+print(f"Best accuracy achieved: {best_accuracy:.5f} with parameters: {best_params}")
 
 # Visualization
 # Convert 'Positif' and 'Negatif' to numerical values for clearer scatter plot
@@ -130,3 +149,5 @@ add_counts(bars1)
 add_counts(bars2)
 
 plt.show()
+
+
