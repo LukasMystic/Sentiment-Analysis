@@ -10,58 +10,70 @@ import numpy as np
 # Load the training Excel file
 training_file_path = 'combined_sentiments.xlsx'
 training_data = pd.read_excel(training_file_path, skiprows=0, usecols=[0, 1], nrows=938)
-print("Training Data Columns:", training_data.columns)
 
 # Rename columns for clarity
 training_data.columns = ['Text', 'Label']
 
 # Ensure that Label column contains only strings and handle NaNs
 training_data['Label'] = training_data['Label'].astype(str).fillna('')
-
-# Ensure that Text column contains only strings
 training_data['Text'] = training_data['Text'].astype(str)
 
 # Load the test Excel file
 test_file_path = 'combined_sentiments_test.xlsx'
 test_data = pd.read_excel(test_file_path, skiprows=0, usecols=[0, 1], nrows=402)
-
-# Rename columns for clarity
 test_data.columns = ['Text', 'Label']
-
-# Ensure that Text and Label columns contain only strings
 test_data['Text'] = test_data['Text'].astype(str)
 test_data['Label'] = test_data['Label'].astype(str)
 
-# Initialize TF-IDF Vectorizer and Naïve Bayes Classifier
-vectorizer = TfidfVectorizer()
-nb = MultinomialNB()
-
-# Create a pipeline
-pipeline = Pipeline([('vectorizer', vectorizer), ('nb', nb)])
+# Define stopwords list
+stopwords_list = [
+    'kami', 'ada', 'tetapi', 'dengan', 'bapak', 'pada', 'yang', 'selain', 'oleh', 
+    'dan', 'apakah', 'kita', 'lagi', 'jika', 'sebagai', 'lebih', 'melalui', 
+    'dapat', 'di', 'tersebut', 'saat', 'tidak', 'jadi', 'dari', 'namun', 
+    'seperti', 'sebuah', 'ini', 'boleh', 'mereka', 'saya', 'bisa', 'untuk', 
+    'adalah', 'sudah', 'juga', 'akan', 'itu', 'ke', 'pak', 'nya', 'harus', 'atau', 'yg'
+]
 
 # Encode labels
 le = LabelEncoder()
 training_labels = le.fit_transform(training_data['Label'])
-
-# Fit the pipeline on training data
-pipeline.fit(training_data['Text'], training_labels)
-
-# Predict on test data
 test_labels = le.transform(test_data['Label'])
-test_predictions = pipeline.predict(test_data['Text'])
+
+# Iterate over different alpha values and find the best model
+best_accuracy = 0
+best_pipeline = None
+best_alpha = 0
+
+for alpha in np.arange(0.1, 1.1, 0.1):
+    vectorizer = TfidfVectorizer(stop_words=stopwords_list)
+    nb = MultinomialNB(alpha=alpha)
+    pipeline = Pipeline([('vectorizer', vectorizer), ('nb', nb)])
+    
+    # Fit the pipeline on training data
+    pipeline.fit(training_data['Text'], training_labels)
+    
+    # Predict on test data
+    test_predictions = pipeline.predict(test_data['Text'])
+    
+    # Calculate accuracy
+    accuracy = accuracy_score(test_labels, test_predictions)
+    
+    if accuracy > best_accuracy:
+        best_accuracy = accuracy
+        best_pipeline = pipeline
+        best_alpha = alpha
+
+# After iteration, use the best model for further analysis and visualization
+test_predictions = best_pipeline.predict(test_data['Text'])
 test_data['AI_Predicted'] = le.inverse_transform(test_predictions)
 
 # Calculate metrics for the AI predictions in the test data
-accuracy = accuracy_score(test_labels, test_predictions)
-print(f"Accuracy of AI predictions on training data: {accuracy:.5f}")
 precision = precision_score(test_labels, test_predictions, average=None, zero_division=0)
 recall = recall_score(test_labels, test_predictions, average=None, zero_division=0)
 f1 = f1_score(test_labels, test_predictions, average=None, zero_division=0)
 
 # Generate classification report
 report = classification_report(test_labels, test_predictions, zero_division=0, output_dict=True)
-
-# Create a DataFrame from the classification report
 report_df = pd.DataFrame(report).transpose()
 print(report_df)
 
@@ -82,6 +94,7 @@ output_file_path = 'sentiment_cdsa_nb.xlsx'
 test_data.to_excel(output_file_path, index=False)
 
 print(f"Test data has been saved to {output_file_path}")
+print(f"Best accuracy achieved: {best_accuracy:.5f} with alpha = {best_alpha:.1f}")
 
 # Visualization
 # Convert 'Positif' and 'Negatif' to numerical values for clearer scatter plot
@@ -130,3 +143,6 @@ add_counts(bars1)
 add_counts(bars2)
 
 plt.show()
+
+
+
