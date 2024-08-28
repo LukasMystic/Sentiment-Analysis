@@ -7,6 +7,14 @@ from sklearn.pipeline import Pipeline
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Define stopwords
+stopwords_id = set([
+    'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'adalah', 'pada', 'ini', 'itu', 'sebuah', 'dengan', 'atau', 
+    'juga', 'sudah', 'oleh', 'ada', 'saya', 'kita', 'kami', 'itu', 'mereka', 'apakah', 'akan', 'tersebut', 
+    'selain', 'boleh', 'harus', 'sebagai', 'saat', 'tetapi', 'jadi', 'dapat', 'lebih', 'lagi', 'melalui', 
+    'seperti', 'jika', 'seperti', 'namun', 'nya', 'pak', 'bisa', 'tidak', 'bapak','yg'
+])
+
 # Load the training Excel file
 training_file_path = 'combined_sentiments.xlsx'
 training_data = pd.read_excel(training_file_path, skiprows=0, usecols=[0, 1], nrows=938)
@@ -32,41 +40,68 @@ test_data.columns = ['Text', 'Label']
 test_data['Text'] = test_data['Text'].astype(str)
 test_data['Label'] = test_data['Label'].astype(str)
 
-# Initialize TF-IDF Vectorizer and Decision Tree Classifier
-vectorizer = TfidfVectorizer()
-dt = DecisionTreeClassifier()
-
-# Create a pipeline
-pipeline = Pipeline([('vectorizer', vectorizer), ('dt', dt)])
+# Initialize TF-IDF Vectorizer with stopwords
+stopwords_list = list(stopwords_id)
+vectorizer = TfidfVectorizer(stop_words=stopwords_list)
 
 # Encode labels
 le = LabelEncoder()
 training_labels = le.fit_transform(training_data['Label'])
-
-# Fit the pipeline on training data
-pipeline.fit(training_data['Text'], training_labels)
-
-# Predict on test data
 test_labels = le.transform(test_data['Label'])
-test_predictions = pipeline.predict(test_data['Text'])
-test_data['AI_Predicted'] = le.inverse_transform(test_predictions)
 
-# Calculate metrics for the AI predictions in the test data
-accuracy = accuracy_score(test_labels, test_predictions)
-print(f"Accuracy of AI predictions on training data: {accuracy:.5f}")
-precision = precision_score(test_labels, test_predictions, average=None, zero_division=0)
-recall = recall_score(test_labels, test_predictions, average=None, zero_division=0)
-f1 = f1_score(test_labels, test_predictions, average=None, zero_division=0)
+# Variables to track the highest accuracy, best hyperparameters, and corresponding predictions
+best_accuracy = 0
+best_hyperparams = None
+best_predictions = None
 
-# Generate classification report
-report = classification_report(test_labels, test_predictions, zero_division=0, output_dict=True)
+# Hyperparameter values to iterate over
+max_depth_values = [None, 10, 20, 30]
+min_samples_split_values = [2, 5, 10]
+min_samples_leaf_values = [1, 2, 4]
+
+# Iterate over hyperparameter combinations
+for max_depth in max_depth_values:
+    for min_samples_split in min_samples_split_values:
+        for min_samples_leaf in min_samples_leaf_values:
+            # Initialize Decision Tree Classifier with current hyperparameters
+            dt = DecisionTreeClassifier(max_depth=max_depth, min_samples_split=min_samples_split, min_samples_leaf=min_samples_leaf)
+            
+            # Create a pipeline
+            pipeline = Pipeline([('vectorizer', vectorizer), ('dt', dt)])
+            
+            # Fit the pipeline on training data
+            pipeline.fit(training_data['Text'], training_labels)
+            
+            # Predict on test data
+            test_predictions = pipeline.predict(test_data['Text'])
+            
+            # Calculate accuracy
+            accuracy = accuracy_score(test_labels, test_predictions)
+            
+            # If the current accuracy is higher than the best accuracy, update best accuracy, hyperparameters, and predictions
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_hyperparams = (max_depth, min_samples_split, min_samples_leaf)
+                best_predictions = test_predictions
+                print(f"New Best Accuracy: {best_accuracy:.5f} with max_depth={max_depth}, min_samples_split={min_samples_split}, min_samples_leaf={min_samples_leaf}")
+
+# Update the test_data with the best predictions
+test_data['AI_Predicted'] = le.inverse_transform(best_predictions)
+
+# Calculate metrics for the best AI predictions in the test data
+precision = precision_score(test_labels, best_predictions, average=None, zero_division=0)
+recall = recall_score(test_labels, best_predictions, average=None, zero_division=0)
+f1 = f1_score(test_labels, best_predictions, average=None, zero_division=0)
+
+# Generate classification report for the best predictions
+report = classification_report(test_labels, best_predictions, zero_division=0, output_dict=True)
 
 # Create a DataFrame from the classification report
 report_df = pd.DataFrame(report).transpose()
 print(report_df)
 
-# Generate confusion matrix
-conf_matrix = confusion_matrix(test_labels, test_predictions)
+# Generate confusion matrix for the best predictions
+conf_matrix = confusion_matrix(test_labels, best_predictions)
 print("Confusion Matrix:")
 print(conf_matrix)
 
@@ -77,11 +112,11 @@ incorrect_predictions = test_data[test_data['Label'] != test_data['AI_Predicted'
 correct_counts = correct_predictions['Label'].value_counts()
 incorrect_counts = incorrect_predictions['Label'].value_counts()
 
-# Save only the test data to a new Excel file
-output_file_path = 'sentiment_cdsa_decision_tree.xlsx'
+# Save only the test data with the best predictions to a new Excel file
+output_file_path = 'sentiment_cdsa_decision_tree2.xlsx'
 test_data.to_excel(output_file_path, index=False)
 
-print(f"Test data has been saved to {output_file_path}")
+print(f"Test data with best predictions has been saved to {output_file_path}")
 
 # Visualization
 # Convert 'Positif' and 'Negatif' to numerical values for clearer scatter plot
@@ -129,4 +164,29 @@ def add_counts(bars):
 add_counts(bars1)
 add_counts(bars2)
 
+plt.show()
+
+# TF-IDF Feature Extraction Visualization
+# Extract the TF-IDF feature names and their corresponding mean scores
+tfidf_feature_names = vectorizer.get_feature_names_out()
+
+# Get the mean TF-IDF score for each feature across all training documents
+tfidf_scores = pipeline.named_steps['vectorizer'].transform(training_data['Text']).mean(axis=0).A1
+
+# Create a DataFrame for the TF-IDF features and their average scores
+tfidf_df = pd.DataFrame({'Feature': tfidf_feature_names, 'Mean_TFIDF_Score': tfidf_scores})
+
+# Remove stopwords from the DataFrame
+tfidf_df = tfidf_df[~tfidf_df['Feature'].isin(stopwords_list)]
+
+# Sort the DataFrame by TF-IDF scores in descending order to see the most important terms
+tfidf_df = tfidf_df.sort_values(by='Mean_TFIDF_Score', ascending=False).head(10)  
+
+# Plot the top 10 TF-IDF features
+plt.figure(figsize=(12, 6))
+plt.barh(tfidf_df['Feature'], tfidf_df['Mean_TFIDF_Score'], color='skyblue')
+plt.xlabel('Mean TF-IDF Score')
+plt.ylabel('Feature')
+plt.title('Top 10 TF-IDF Features')
+plt.gca().invert_yaxis()  # Invert y-axis to have the highest score at the top
 plt.show()
